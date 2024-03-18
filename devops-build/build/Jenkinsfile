@@ -1,0 +1,59 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY = 'docker.io'
+        IMAGE_NAME = 'mani970/webpage:v1'
+        GITHUB_TOKEN = credentials('github-token')
+        DOCKER_REGISTRY_CREDENTIALS_ID = 'Docker'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'dev', url: 'https://github.com/your-github-username/your-repo-name.git', credentialsId: 'github-token'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'chmod +x build.sh'
+                sh './build.sh'
+            }
+        }
+
+        stage('Push to Dev') {
+            when {
+                branch 'dev'
+            }
+            steps {
+                sh 'docker-compose push'
+            }
+            post {
+                success {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
+                        sh 'docker build -t ${IMAGE_NAME}:dev .'
+                        sh 'docker push ${IMAGE_NAME}:dev'
+                    }
+                }
+            }
+        }
+
+        stage('Push to Prod') {
+            when {
+               branch 'master'
+            }
+            steps {
+                sh 'docker-compose push'
+            }
+            post {
+                success {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
+                        sh 'docker build -t ${IMAGE_NAME}:prod .'
+                        sh 'docker push ${IMAGE_NAME}:prod'
+                    }
+                }
+            }
+        }
+    }
+}
